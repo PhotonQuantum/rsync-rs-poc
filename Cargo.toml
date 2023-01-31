@@ -1,0 +1,22 @@
+[package]
+name = "rsync-poc"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1.25", features = ["full"] }
+url = "2.3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features=["env-filter"] }
+scan_fmt = "0.2"
+clean-path = "0.2"
+async-trait = "0.1"
+md4 = "0.10"
+tempfile = "3.3"
+unix_mode = "0.1"
+eyre = "0.6"
+color-eyre = "0.6"
+filetime = "0.2"
+num = "0.4"
