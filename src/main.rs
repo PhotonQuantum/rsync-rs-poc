@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::path::PathBuf;
 
 use eyre::{bail, eyre, Context, Result};
@@ -9,6 +10,7 @@ use tracing::{debug, info, instrument, warn};
 use url::Url;
 
 use crate::envelope::{EnvelopeRead, RsyncReadExt};
+use crate::filter::Rule;
 use crate::generator::Generator;
 use crate::opts::Opts;
 use crate::recv::Receiver;
@@ -16,6 +18,7 @@ use crate::recv::Receiver;
 mod chksum;
 mod envelope;
 mod file_list;
+mod filter;
 mod generator;
 mod opts;
 mod recv;
@@ -28,6 +31,7 @@ async fn main() -> Result<()> {
 
     let opts = Opts {
         dest: PathBuf::from("./dest"),
+        filters: vec![Rule::Exclude(OsString::from("*.pyc"))],
     };
 
     let url = Url::parse("rsync://127.0.0.1/pysjtu/")?;
@@ -50,7 +54,7 @@ async fn start_socket_client(url: Url, opts: &Opts) -> Result<()> {
     let mut conn = Conn::new(&mut stream);
     conn.start_inband_exchange(module, path).await?;
 
-    let (seed, mut enveloped_conn) = conn.handshake_done().await?;
+    let (seed, mut enveloped_conn) = conn.handshake_done(&opts.filters).await?;
     let file_list = enveloped_conn.recv_file_list().await?;
     info!(files = file_list.len(), "file list");
 
@@ -170,12 +174,11 @@ impl<'a> Conn<'a> {
     }
 
     #[instrument(skip(self))]
-    async fn handshake_done(mut self) -> Result<(i32, EnvelopedConn<'a>)> {
+    async fn handshake_done(mut self, rules: &[Rule]) -> Result<(i32, EnvelopedConn<'a>)> {
         let seed = self.rx.read_i32_le().await?;
         debug!(seed);
 
-        // TODO exclusion list
-        self.tx.write_i32_le(0).await?;
+        self.send_filter_rules(rules).await?;
 
         Ok((
             seed,
